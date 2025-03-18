@@ -1,0 +1,118 @@
+
+Diagram's components:
+
+1. clients: assuming the Wix application is deployed in desktop, mobile and web apps.
+
+2. clients SDK: in order to collect the relevant data for this project we will need to write an SDK, to deploy it
+    on all end users apps, and to communicate with the API gateway of amazon.
+    The SDK can ensure data is captured consistently across platforms, and can buffer and retry in case of connection issues,
+    ensuring reliability, even with high-traffic volumes.
+
+3. API gateway: Ensures secure and scalable ingestion of data into our cluster.
+   AWS API Gateway handles authentication and loads balancing, it Scales automatically to handle high throughput
+   from millions of users.It manages authentication, throttling, and rate limiting for security and governance.
+   Ensures secure access to reports and dashboards, using access control (IAM, Cognito).
+   Provides secure API endpoints for authorized users and complies with data governance and privacy regulations (GDPR, CCPA).
+
+4. Amazon kinesis: captures high-velocity events data in real-time, Supports large-scale ingestion, with multiple producers and consumers.
+    Supports streaming processing, enabling quick reactions (e.g., anomaly detection, alerting ready to use).
+    Guarantees durability and scalability.
+
+5. Amazon S3: raw data object storage of events in low volume files types (parquet/json),
+    and low price storage for large quantities of data, also  scalable and secure
+    Acts as a data lake for Spark-based ETL jobs.
+
+6. Spark: spark cluster will run on AWS infrastructure in order to collect logs from the pods instances.
+    the processing layer of this cluster, will be used to enrich, clean, and transform raw data
+    into the analytics-ready datasets.
+    Supports batch processing (e.g. daily aggregations) and real-time micro-batch (streaming) with Spark Structured Streaming.
+    Can apply business logic, including user segmentation from the Business Analysis team.
+
+7. Amazon RedShift: stores processed data, high-performance data warehouse for structured analytical workloads.
+    It stores aggregated and enriched event data for advanced analytics, supports complex SQL queries for ad-hoc exploration and scheduled reporting.
+    scales efficiently to handle large volumes of historical data.
+
+8. Amazon QuickSight: amazon Self-service analytics tool,can be performed ad-hoc queries,
+    and real time and interactive dashboard on S3 and redshift data storage.
+
+9. Amazon CloudWatch: the log center of all the cluster, consumes logs from all the components (amazon based by default,
+    external with adaption) and present a fully live monitoring dashboards (default and custom)
+    Tracks API Gateway metrics (errors, latencies), Kinesis throughput, and Spark job health.
+    Can send alerts in case of data loss, processing failures, or performance degradation,
+    ensures reliable data processing by triggering automated scaling or manual interventions.
+
+10. company external data: In order to fully segment the users i assume that the company
+    has more metadata or action data about the users, so the analytics service must be connected to this data (QuickSight).
+
+In this solution, I mainly use AWS services, and this is because they provide many services that are suitable
+for this project to solve the problem at the plug-and-play level.
+
+when using IAM management for example, we can prevent access and save our sensitive information only to those
+with appropriate permissions.
+
+Using amazon kinesis, we can process large amounts of information both in real time and in batches,
+according to what we want and ready with the other components.
+
+Amazon's API GW services allow us to secure and comply with our cluster,
+prevent access by third parties and enter data in a structure that we define.
+
+Storing the raw data in S3 will be very cheap and very easy to use.
+In addition, rules can be defined using LAMBDA functions (which are cheap) , for example,
+that will delete the old information (after it has undergone the required processing),
+and this way you can really save space and costs over time.
+
+deploying a Spark cluster may be more technically challenging than the other components,
+but in terms of processing capabilities and costs, it will be better than using Amazon's ready-made big data processing service.
+In this project, we will probably have many types of processing, transformations, and user segmentation,
+and in terms of costs, it is better to pay for EC2's processing power than Amazon's EMR.
+
+
+future extensibility:
+
+because of the modular architecture it will be easy to replace or add another components in the future.
+
+1. adding AI models:
+    a. anomaly detection model that will run in the cluster on the real time data (saved in amazon Feature store) to detect outliars.
+    b. initial user segmentation model (based on user history and event to apply login in real time in the application frontend)
+
+2. deploy kafka instead of kinesis:
+    probably will be cheaper in high volumes but harder to deploy and need to be maintained so need to deeply consider.
+
+
+timeline estimates:
+MVP within 8 weeks:
+- Week 1-2: Ingestion + API Gateway
+- Week 3-4: Stream processing + storage
+- Week 5-6: Spark set up and configuration
+- Week 7: Batch ETL + DWH
+- Week 8: BI dashboards + monitoring + IAM roles
+
+testing:
+- Develop a lambda function that simulate events data enters the pipeline (with errors, anomalies and excepted data).
+- Define for each component expected outcome
+- Set up a mini stress test (mainly to see that the components scales vertically if needed e.g. deploy another pod)
+- Set up connection from amazon QuickSight to the external databases to valid the connectivity
+
+data schemes:
+the client SDK will collect events in JSON format, saving them in S3 in JSON (real time)/parquet (Batch).
+S3 will provide a solid, cheap and flexible storage for the raw data, and we
+can apply the ETL logic in streaming or batching on the same storage.
+
+next, Spark will load the data,
+transform it to tabular format (more adjustable for advanced analytics and ad hoc quires),
+will enrich the database (add more features, maybe across users, dates, Geo location ect )
+and will save it in Amazon RedShift.
+
+RedShift will be our analytical database, because it's a columnar database. could be any other columnar database e.g. Vertica
+but for simplification of implementation and monitoring I chose RedShift .
+That means it stores data by columns rather than by rows,
+which makes it highly optimized for analytics and complex queries over large datasets.
+It will be the best choice for Perfect for OLAP (Online Analytical Processing) workloads,
+like aggregations, reporting, and data analysis, which this task demands.
+
+Finally, Amazon QuickSight will allow the analysts to query the RedShift database in a secure and permitted
+only way based on pre-defined IAM groups in the AWS environment.
+In addition, Amazon QuickSight integrates seamlessly with Amazon Redshift, and can use caches mechanism which will improve performance ,
+saving costs and reduce loads on the RedShift cluster.
+
+Both RedShift and QuickSight can scale together based on demand as well as the other AWS services.

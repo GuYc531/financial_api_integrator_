@@ -1,0 +1,75 @@
+# TODO: indexes, partioning, keys
+# TODO: consider multi tables based on time frames  e.g. seconds, minute, hour, day, week, month, quarter, year
+
+- multi table approach, handler will check for the value of `time_frame`
+and will insert the data to the relevant table( create if not exists)
+
+create table schema_name.stock_price_data_{time_frame}_table as (
+price_id serial primary key,
+v int ,
+vw float,
+o float,
+c float,
+h float,
+l float,
+t int,
+n int,
+timestamp timestamp non null,
+ticker varchar(20) non null,
+currency varchar(20) non null
+)
+
+--indexes
+CREATE INDEX idx_stock_price_data_{time_frame}_timestamp
+ON schema_name.stock_price_data_{time_frame}_table (timestamp);
+
+CREATE INDEX idx_stock_price_data_{time_frame}_ticker
+ON schema_name.stock_price_data_{time_frame}_table (ticker);
+
+CREATE INDEX idx_stock_price_data_{time_frame}_currency
+ON schema_name.stock_price_data_{time_frame}_table (currency);
+
+
+
+create table schema_name.currency_data_table as (
+currency_id serial primary key,
+AUD float,
+BGN float,
+BRL float,
+CAD float,
+CHF float,
+CNY float,
+CZK float,
+DKK float,
+EUR float,
+GBP float,
+HKD float,
+HUF float,
+IDR float,
+ILS float,
+INR float,
+ISK float,
+JPY float,
+KRW float,
+MXN float,
+MYR float,
+NOK float,
+NZD float,
+PHP float,
+PLN float,
+RON float,
+SEK float,
+SGD float,
+THB float,
+TRY float,
+ZAR float,
+base_currency varchar(20) non null,
+timestamp timestamp non null
+       )
+
+--indexes
+CREATE INDEX currency_data_table_base_currency
+ON schema_name.currency_data_table (base_currency);
+
+CREATE INDEX currency_data_table_timestamp
+ON schema_name.currency_data_table (timestamp);

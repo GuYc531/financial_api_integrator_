@@ -1,0 +1,97 @@
+ERD description:
+
+overview:
+In general, I think it is best to minimize the information stored in this schema can be done by decreasing the
+EVENTS table volume because its volume will be the largest, in addition to allowing queries to be executed
+from this table and connecting all other information to it in one way or another.
+This was my guiding principle in design.
+
+I chose to design the ERD in a somewhat hybrid STAR SCHEMA style.
+According to the structure and relationships of the entities mentioned in the exercise,
+I saw fit to design several dimension tables for each entity account, sub account,portfolio,campaign,ad_group and ads
+so that if we want to display information about a particular entity in queries beyond its ID,
+we will have to perform a JOIN, an operation that is not possible in most databases (especially columnar DB).
+
+The entity relationships were explained in the exercise and therefore the connections
+between them can be seen using foreign keys in the ERD schema.
+
+My solution provides a solution for both historical queries and current data analysis,
+but it is important to note that there is a limitation that the dimension and history are very large,
+so there will be an increase in latency when executing historical queries because the events table will be very large.
+I did several things in DESIGN to reduce this limitation:
+
+1. Creating a time table that will store information about the times of the events.
+This will eliminate the use of time functions, operations that burden most databases
+
+2. Creating a BIDS table that will store information about each BID and LABEL.
+ Since they can change more frequently (every hour), there is a field called is_latest that will only be TRUE for
+ records that are up-to-date, which will make it easier to query this table.
+ For example, there are advertisements with a BID that is updated, so in the BIDS table,
+ only one record in the table will have the is_latest =TRUE field,
+ which can significantly reduce the amount of information that will be retrieved in queries,
+ and can also allow you to see the development of the BID over time.
+
+3.
+
+indexes:
+
+To reduce queries execution time ( data retrieve time and tables join performance) i will use indexes when creating
+this ERD diagram in the database.
+
+1. In the ERD diagram I mentioned, all the dimensional tables have a foreign key to another entity,
+    that by this design the reader should use many joins to combine data from different entities,
+    so I will create the following indexes:
+    a. Dim_Ads_table - ad_id, ad_group_id
+    b. Dim_Ads_group_table - ad_group_id, campaign_id
+    c. Dim_Campaign_table -  campaign_id, Portfolio_id
+    d. Dim_Portfolio_table -  Portfolio_id
+    e. Dim_Account_table - account_id
+    f. Dim_Sub_Account_table - sub_Account_id, account_id
+    g. Dim_Times_table - Time_id
+    h. Dim_Bids_table - bid_id
+        * The only differance I will do is in the dim_bids_table, which this index will be with a `where` clause
+          which states : `WHERE Is_latest is True`, this will optimize the queries and the joins that will be performed
+          on this table because for most cases the join/query will use `WHERE Is_latest is True` in them.
+
+2. In the Fact_events_table I will create a few indexes based on use cases I think will be queried the most:
+    a. Time_id - will optimize all the operations that use time for filtering
+    b. ad_id - will optimize all operations that will drill down to dim_ad_tables
+    c. bid_id - will optimize all the operations that use bids data for filtering and joins.
+    d. account_id -  will optimize all the operations that use account data for filtering and joins
+
+    e. DRAWBACK - I assume the general nature of the operations of reading from the DB,
+     so I created relatively many indexes on this table, but this has a significant disadvantage that it increases the
+     time to write and update to the DB, which is important to take into account,
+     but at the same time it greatly improves the speed of reading from the DB.
+
+3. In the Dim_Sub_Account_table I will index also create another 2 indexes:
+   a. Geo_location - will optimize the operations for aggregating data based on this column
+   b. Device - will optimize the operations for aggregating data based on this column
+
+4. If in this case users will need to open search by for example label column in the Dim_Bids_table,
+    then will create an index over these columns in addition.
+
+hourly vs. daily updates:
+
+My design manages to handle changes every hourly versus daily,through its characterization,
+so that what is updated at an hourly level are only the bid and label columns,
+therefore the only table that is updated is the Dim_Bids_table.
+
+The information that will be relevant to the most updated bid will be available in the JOIN
+from the Fact_events_table to Dim_Bids_table, but the bid_id in the Fact_events_table will not need to be
+updated but will be connected in the JOIN with `WHERE Is_latest is True` from the Dim_Bids_table.
+
+And in the same way, it will be possible to perform historical research on the Dim_Bids_table
+and see the course of events over time using the update_time column,
+but such operations will take the user more time to execute against the DB because of using columns not indexed.
+This is part of the tradeoff of the design that there is a priority for researching current information over
+researching historical information.
+
+data quality issues:
+
+based on the information given of this use case, this model should handle missing data from specific null able columns.
+
+In general if there will be data inconsistencies in this model data, because we save every historical data and never
+use delete clause and only use insert operation on the Fact_events_table and the Dim_Bids_table,
+which are the most core tables in this model it will be possible in the event of data inconsistency
+to manually or semi-automatically restore the correct information to be the most up-to-date
